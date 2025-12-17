@@ -512,13 +512,24 @@ function runTests(){
 }
 runTests();
 function sendTest(){
+  alert("DEBUG: am apăsat TEST");
+
   const WA = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
-  if(!WA || !WA.sendData){
-    alert("Nu sunt în Telegram WebApp (sendData lipsește). Deschide din butonul botului.");
+
+  if(!WA){
+    alert("DEBUG: window.Telegram.WebApp NU există");
     return;
   }
+  if(!WA.sendData){
+    alert("DEBUG: sendData NU există în WebApp");
+    return;
+  }
+
   WA.sendData(JSON.stringify({type:"TEST", ts: Date.now()}));
+  alert("DEBUG: sendData trimis, închid acum");
   WA.close();
+}
+
 }
 
 
