@@ -126,6 +126,10 @@ header{padding:16px;text-align:center;font-size:20px;font-weight:800;color:var(-
 
 <div id="categories"></div>
 <div id="products"></div>
+<div style="padding:10px">
+  <button class="btn" onclick="sendTest()">📨 Trimite TEST către bot</button>
+</div>
+
 
 <div id="cartBar">
   <div id="cartTotal">0 lei</div>
@@ -507,6 +511,16 @@ function runTests(){
   assert('calcDelivery delivery freeFrom => fee 0', calcDelivery(200,'delivery').fee===0);
 }
 runTests();
+function sendTest(){
+  const WA = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if(!WA || !WA.sendData){
+    alert("Nu sunt în Telegram WebApp (sendData lipsește). Deschide din butonul botului.");
+    return;
+  }
+  WA.sendData(JSON.stringify({type:"TEST", ts: Date.now()}));
+  WA.close();
+}
+
 
 updateCart();
 renderCategories();
