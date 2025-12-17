@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Izvor • Comandă Online</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+:root{
+ --bg:#0e0e0e;
+ --card:#1a1a1a;
+ --gold:#d4af37;
+ --gold-soft:#b8962e;
+ --text:#ffffff;
+ --muted:#bdbdbd;
+ --danger:#ef4444;
+ --ok:#22c55e;
+ --blue:#3b82f6;
+}
+*{box-sizing:border-box;font-family:Inter,Arial,sans-serif}
+body{margin:0;background:var(--bg);color:var(--text)}
+header{padding:16px;text-align:center;font-size:20px;font-weight:800;color:var(--gold)}
+.small{font-size:12px;color:var(--muted)}
+
+#categories{display:flex;gap:10px;overflow-x:auto;padding:10px}
+.cat{
+ padding:10px 16px;border-radius:999px;background:var(--card);
+ border:1px solid var(--gold-soft);white-space:nowrap;cursor:pointer;user-select:none
+}
+.cat.active{background:var(--gold);color:#000;font-weight:800;border-color:var(--gold)}
+
+#products{padding:10px;display:grid;grid-template-columns:1fr;gap:12px}
+.card{background:var(--card);border-radius:16px;padding:14px;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+.card h3{margin:0 0 6px 0;font-size:16px}
+.price{color:var(--gold);font-weight:800}
+
+.btn{
+ margin-top:10px;width:100%;padding:12px;border:none;border-radius:999px;
+ background:linear-gradient(135deg,var(--gold),var(--gold-soft));
+ color:#000;font-weight:900;cursor:pointer
+}
+
+/* CART BAR */
+#cartBar{
+ position:fixed;bottom:0;left:0;right:0;background:#000;
+ padding:10px 14px;border-top:1px solid var(--gold-soft);
+ display:flex;justify-content:space-between;align-items:center;z-index:900
+}
+#cartTotal{font-weight:800}
+#cartBtn{
+ background:var(--gold);color:#000;border:none;border-radius:999px;
+ padding:12px 18px;font-weight:900;position:relative;cursor:pointer
+}
+#badge{
+ position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;
+ min-width:22px;height:22px;border-radius:50%;font-size:12px;
+ display:flex;align-items:center;justify-content:center;font-weight:900
+}
+
+/* TOAST */
+#toast{
+ position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+ background:var(--gold);color:#000;padding:10px 18px;
+ border-radius:999px;font-weight:800;display:none;z-index:2000
+}
+
+/* Mini UI helpers */
+.notice{color:var(--muted);font-size:12px;line-height:1.35}
+.hr{height:1px;background:#2b2b2b;margin:12px 0}
+.pill{
+ display:inline-flex;align-items:center;gap:8px;
+ padding:10px 12px;border-radius:999px;border:1px solid var(--gold-soft);
+ background:#121212;cursor:pointer;user-select:none
+}
+.pill.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:900}
+.input{
+ width:100%;padding:12px;border-radius:14px;border:1px solid #2a2a2a;
+ background:#0f0f0f;color:var(--text);outline:none
+}
+.input::placeholder{color:#777}
+.select{appearance:none}
+.error{color:#ff6b6b;font-weight:900}
+.ok{color:#7CFF8B;font-weight:900}
+.btn-secondary{
+ width:100%;padding:12px;border:none;border-radius:999px;
+ background:#101010;color:var(--gold);font-weight:900;cursor:pointer;
+ border:1px solid var(--gold-soft)
+}
+.btn-danger{
+ width:100%;padding:12px;border:none;border-radius:999px;
+ background:var(--danger);color:#fff;font-weight:900;cursor:pointer
+}
+.btn-blue{
+ width:100%;padding:12px;border:none;border-radius:999px;
+ background:var(--blue);color:#fff;font-weight:900;cursor:pointer
+}
+.btn-ok{
+ width:100%;padding:12px;border:none;border-radius:999px;
+ background:var(--ok);color:#000;font-weight:950;cursor:pointer
+}
+
+/* CART DRAWER */
+#cartDrawer{
+ position:fixed;left:0;right:0;bottom:-100%;height:70%;
+ background:var(--card);border-radius:20px 20px 0 0;
+ box-shadow:0 -6px 20px rgba(0,0,0,.6);
+ transition:.35s ease;z-index:1000;padding:14px;overflow-y:auto
+}
+#cartDrawer.open{bottom:0}
+.cart-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.qty-btn{
+ width:32px;height:32px;border-radius:50%;border:none;
+ background:var(--gold);color:#000;font-weight:950;cursor:pointer
+}
+.remove{background:none;border:none;color:#ff6b6b;font-size:18px;cursor:pointer}
+.drawer-footer{position:sticky;bottom:0;background:#000;padding:14px;margin:-14px}
+</style>
+</head>
+
+<body>
+<header>
+  ☕ La Izvor<br>
+  <span class="small">📞 069 878 819 • 📍 <a href="https://maps.app.goo.gl/Brx6DiBH5cvSBs337" target="_blank" style="color:var(--gold);text-decoration:underline">Google Maps</a></span>
+</header>
+
+<div id="categories"></div>
+<div id="products"></div>
+
+<div id="cartBar">
+  <div id="cartTotal">0 lei</div>
+  <button id="cartBtn" onclick="openCart()">🛒 Coș <span id="badge">0</span></button>
+</div>
+
+<div id="toast">Produs adăugat</div>
+<div id="cartDrawer"></div>
+
+<script>
+// Telegram safety: dacă deschizi în browser, Telegram.WebApp poate lipsi.
+const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+if (TG) {
+  TG.ready();
+  TG.expand();
+}
+
+const CAFE = {
+  name: 'La Izvor',
+  phone: '069878819',
+  maps: 'https://maps.app.goo.gl/Brx6DiBH5cvSBs337'
+};
+
+const DELIVERY = {
+  zones: ['Ratuș','Măgdăcești','Pașcani','Porumbeni'],
+  minOrder: 100,
+  fee: 20,
+  freeFrom: 200
+};
+
+let userLocation = null;
+
+const menu = {
+  'Băuturi – Cafea': [
+    {n:'Americano',p:25},{n:'Espresso',p:25},{n:'Cappuccino',p:30},{n:'Latte',p:30},{n:'Ice Latte',p:40},
+    {n:'Cafea 3 în 1',p:15},{n:'Cafea solubilă',p:15},{n:'Sirop',p:5}
+  ],
+  'Ceai': [
+    {n:'Ceai Julius Meinl (asortiment)',p:20},{n:'Ceai infuzie (asortiment)',p:20},
+    {n:'Ceai natural 400 ml',p:35},{n:'Ceai natural 800 ml',p:65}
+  ],
+  'Micul dejun': [
+    {n:'Ouă ochiuri cu crenvurști',p:85},{n:'Omletă',p:70},
+    {n:'Fulgi de ovăz cu fructe',p:50},{n:'Clătite cu carne de pui',p:80},{n:'Clătite cu gem',p:60}
+  ],
+  'Meniu principal': [
+    {n:'Friptură din ceafă de porc cu mămăligă',p:110},{n:'Ceafă de porc cu piure',p:90},
+    {n:'Bătuță de porc/pui cu cartofi',p:75},{n:'Cheeseburger de vită',p:80},
+    {n:'Cheeseburger de vită dublu',p:100},{n:'Cheeseburger de vită cu bacon',p:130},
+    {n:'Cartofi prăjiți & ruladă de pui cu cașcaval',p:75}
+  ],
+  'Salate': [
+    {n:'Salată Caesar',p:105},{n:'Salată grecească',p:80},
+    {n:'Salată de varză',p:30},{n:'Salată de vară',p:30}
+  ],
+  'Plăcinte la tigaie': [
+    {n:'Plăcintă cu pui, cașcaval & ciuperci',p:60},{n:'Plăcintă cu cartofi',p:40},
+    {n:'Plăcintă cu brânză & verdeață',p:50},{n:'Plăcintă cu varză',p:40},
+    {n:'Plăcintă cu vișină',p:50},{n:'Plăcintă cu măr',p:40},{n:'Plăcintă cu dovleac',p:40}
+  ],
+  'Plăcinte la cuptor': [
+    {n:'Plăcintă cu brânză',p:20},{n:'Plăcintă cu cartof',p:20},{n:'Plăcintă cu varză',p:20},
+    {n:'Plăcintă cu vișină',p:20},{n:'Plăcintă cu halva',p:20},
+    {n:'Plăcintă cu halva & vișină',p:20},{n:'Plăcintă cu nucă & prune',p:20},{n:'Plăcintă cu prune',p:20}
+  ],
+  'Supe': [
+    {n:'Zeamă de pui',p:50},{n:'Borș roșu',p:55},{n:'Soleancă',p:60}
+  ],
+  'Business Lunch': [
+    {n:'Business Lunch (zilnic)',p:90}
+  ],
+  'Platouri': [
+    {n:'Platou Nr. 1 la cuptor',p:800},{n:'Platou Nr. 2 la cuptor',p:800},
+    {n:'Platou legume proaspete',p:250},{n:'Salată Caesar (platou)',p:210}
+  ]
+};
+
+let cart = [];
+
+const catDiv = document.getElementById('categories');
+const prodDiv = document.getElementById('products');
+
+function renderCategories(){
+  catDiv.innerHTML = '';
+  const cats = Object.keys(menu);
+  cats.forEach((c,i)=>{
+    const d = document.createElement('div');
+    d.className = 'cat' + (i===0 ? ' active' : '');
+    d.innerText = c;
+    d.onclick = ()=> selectCat(c, d);
+    catDiv.appendChild(d);
+  });
+  if (cats.length) selectCat(cats[0], catDiv.firstChild);
+}
+
+function selectCat(cat, el){
+  document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  prodDiv.innerHTML='';
+  menu[cat].forEach(p=>{
+    // Important: escapăm ghilimelele simple din nume ca să nu stricăm onclick
+    const safeName = p.n.replace(/'/g, "\\'");
+    prodDiv.innerHTML += `
+      <div class="card">
+        <h3>${p.n}</h3>
+        <div class="price">${p.p} lei</div>
+        <button class="btn" onclick="add('${safeName}',${p.p})">Adaugă</button>
+      </div>`;
+  });
+}
+
+function add(name, price){
+  const item = cart.find(x=>x.n===name);
+  if(item) item.q++;
+  else cart.push({n:name,p:price,q:1});
+  updateCart();
+  showToast();
+}
+
+function updateCart(){
+  let total = 0;
+  let count = 0;
+  cart.forEach(i=>{ total += i.p*i.q; count += i.q; });
+
+  document.getElementById('cartTotal').innerText = total + ' lei';
+
+  const b = document.getElementById('badge');
+  b.innerText = count;
+  b.style.display = count ? 'flex' : 'none';
+}
+
+function showToast(){
+  const t = document.getElementById('toast');
+  t.style.display='block';
+  setTimeout(()=> t.style.display='none', 1200);
+}
+
+function openCart(){
+  const d = document.getElementById('cartDrawer');
+  d.classList.add('open');
+  renderCart();
+}
+
+function closeCart(){
+  document.getElementById('cartDrawer').classList.remove('open');
+}
+
+function renderCart(){
+  const d = document.getElementById('cartDrawer');
+  let html = `<h3 style="margin:4px 0 10px 0">🛒 Coșul tău</h3>`;
+  let total = 0;
+
+  if(cart.length===0){
+    d.innerHTML = html + `<p class='notice'>Coșul este gol. Adaugă produse din meniu.</p>
+      <div class='drawer-footer'>
+        <button class='btn' onclick='closeCart()'>Înapoi la meniu</button>
+      </div>`;
+    return;
+  }
+
+  cart.forEach((i,idx)=>{
+    total += i.p*i.q;
+    html += `
+      <div class="cart-item">
+        <div style="max-width:60%">${i.n}<br><small class="small">${i.p} lei</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="qty-btn" onclick="dec(${idx})">−</button>
+          <strong style="min-width:20px;text-align:center">${i.q}</strong>
+          <button class="qty-btn" onclick="inc(${idx})">+</button>
+          <button class="remove" title="Șterge" onclick="del(${idx})">🗑</button>
+        </div>
+      </div>`;
+  });
+
+  html += `
+    <div class="drawer-footer">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <strong>Total:</strong><strong style="color:var(--gold)">${total} lei</strong>
+      </div>
+      <button class="btn-ok" onclick="openCheckout()">Continuă la checkout</button>
+      <div style="height:10px"></div>
+      <button class="btn-secondary" onclick="closeCart()">Continuă cumpărăturile</button>
+    </div>`;
+
+  d.innerHTML = html;
+}
+
+function inc(i){ cart[i].q++; updateCart(); renderCart(); }
+function dec(i){ cart[i].q--; if(cart[i].q<=0) cart.splice(i,1); updateCart(); renderCart(); }
+function del(i){ cart.splice(i,1); updateCart(); renderCart(); }
+
+function cartTotals(){
+  const subtotal = cart.reduce((s,i)=>s+i.p*i.q,0);
+  const count = cart.reduce((s,i)=>s+i.q,0);
+  return {subtotal,count};
+}
+
+function calcDelivery(subtotal, mode){
+  if(mode!=='delivery') return {fee:0,total:subtotal};
+  if(subtotal>=DELIVERY.freeFrom) return {fee:0,total:subtotal};
+  return {fee:DELIVERY.fee,total:subtotal+DELIVERY.fee};
+}
+
+function requestGeo(){
+  if(!TG || !TG.requestLocation){
+    const el=document.getElementById('geoStatus');
+    if(el) el.innerHTML = '<span class="error">Geolocația funcționează doar în Telegram.</span>';
+    return;
+  }
+
+  TG.requestLocation();
+  TG.onEvent('location', (loc)=>{
+    userLocation = loc;
+    const el=document.getElementById('geoStatus');
+    if(el){ el.innerHTML = '<span class="ok">📍 Locația a fost preluată</span>'; }
+  });
+}
+
+function openCheckout(){
+  document.getElementById('cartDrawer').classList.add('open');
+  renderCheckout('pickup');
+}
+
+function renderCheckout(mode){
+  const d=document.getElementById('cartDrawer');
+  const {subtotal,count}=cartTotals();
+  const pricing=calcDelivery(subtotal,mode);
+  const zoneOptions = DELIVERY.zones.map(z=>`<option value="${z}">${z}</option>`).join('');
+
+  d.innerHTML = `
+    <h3 style="margin:4px 0 6px 0">✅ Checkout</h3>
+    <div class="notice">Alege ridicare sau livrare, apoi completează detaliile.</div>
+
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <div class="pill ${mode==='pickup'?'active':''}" onclick="renderCheckout('pickup')">🏠 Ridicare</div>
+      <div class="pill ${mode==='delivery'?'active':''}" onclick="renderCheckout('delivery')">🚚 Livrare</div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="card" style="background:#121212;border:1px solid #2a2a2a">
+      <div style="display:flex;justify-content:space-between">
+        <div><strong>Subtotal</strong><div class="small">(${count} produse)</div></div>
+        <div><strong>${subtotal} lei</strong></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <div><strong>Livrare</strong>
+          <div class="small">${mode==='delivery' ? (subtotal>=DELIVERY.freeFrom ? 'Gratis (≥ '+DELIVERY.freeFrom+' lei)' : (DELIVERY.fee+' lei (gratis ≥ '+DELIVERY.freeFrom+' lei)')) : '—'}</div>
+        </div>
+        <div><strong>${pricing.fee} lei</strong></div>
+      </div>
+      <div class="hr"></div>
+      <div style="display:flex;justify-content:space-between">
+        <div><strong>Total</strong></div>
+        <div style="color:var(--gold);font-size:18px"><strong>${pricing.total} lei</strong></div>
+      </div>
+    </div>
+
+    ${mode==='delivery' ? `
+      <div class="hr"></div>
+      <div class="small">Zone permise: ${DELIVERY.zones.join(', ')}.</div>
+      <div class="small">Minim livrare: <strong>${DELIVERY.minOrder} lei</strong>.</div>
+
+      <label class="small" style="display:block;margin-top:10px">Zonă</label>
+      <select id="zone" class="input select">
+        <option value="">Alege zona…</option>
+        ${zoneOptions}
+      </select>
+
+      <label class="small" style="display:block;margin-top:10px">Adresă (stradă, nr., detalii)</label>
+      <input id="address" class="input" placeholder="Ex: Str. ..., nr. ..., etaj ...">
+
+      <div style="margin-top:10px">
+        <button class="btn-blue" onclick="requestGeo()">📍 Trimite geolocația</button>
+        <div id="geoStatus" class="small" style="margin-top:6px">(opțional) Poți trimite locația pentru livrare mai ușoară.</div>
+      </div>
+    ` : `
+      <div class="hr"></div>
+      <div class="small">Ridicare din cafenea: <strong>La Izvor</strong> • <a href="${CAFE.maps}" target="_blank" style="color:var(--gold)">vezi pe hartă</a></div>
+    `}
+
+    <div class="hr"></div>
+    <label class="small">Ora dorită (ridicare/livrare)</label>
+    <input id="time" class="input" type="time">
+
+    <div class="hr"></div>
+    <div class="small" style="margin-bottom:6px"><strong>Metodă de plată</strong> (fără online)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="pill active" id="payCash" onclick="setPay('cash')">💵 Cash</div>
+      <div class="pill" id="payCard" onclick="setPay('card')">💳 Card</div>
+    </div>
+
+    <div id="checkoutError" class="error" style="margin-top:10px;display:none"></div>
+
+    <div class="drawer-footer">
+      <button class="btn-ok" onclick="submitOrder('${mode}')">Trimite comanda</button>
+      <div style="height:10px"></div>
+      <button class="btn-secondary" onclick="renderCart()">Înapoi la coș</button>
+      <div style="height:10px"></div>
+      <button class="btn-danger" onclick="closeCart()">Închide</button>
+    </div>
+  `;
+
+  window.__pay = window.__pay || 'cash';
+  setPay(window.__pay);
+}
+
+function setPay(method){
+  window.__pay = method;
+  const cash=document.getElementById('payCash');
+  const card=document.getElementById('payCard');
+  if(!cash || !card) return;
+  cash.classList.toggle('active', method==='cash');
+  card.classList.toggle('active', method==='card');
+}
+
+function submitOrder(mode){
+  const err=document.getElementById('checkoutError');
+  const {subtotal}=cartTotals();
+  const pricing=calcDelivery(subtotal,mode);
+
+  function showErr(msg){
+    if(!err) return;
+    err.style.display='block';
+    err.innerText=msg;
+  }
+
+  // Validări
+  if(mode==='delivery'){
+    if(subtotal < DELIVERY.minOrder){
+      showErr(`Comanda minimă pentru livrare este ${DELIVERY.minOrder} lei. Subtotalul tău este ${subtotal} lei.`);
+      return;
+    }
+    const zone=document.getElementById('zone')?.value || '';
+    if(!zone){ showErr('Alege zona de livrare.'); return; }
+    const address=document.getElementById('address')?.value.trim() || '';
+    if(!address && !userLocation){
+      showErr('Completează adresa sau trimite geolocația (ideal ambele).');
+      return;
+    }
+  }
+
+  const time=document.getElementById('time')?.value || '';
+  if(!time){ showErr('Selectează ora dorită.'); return; }
+
+  // Payload către bot
+  const payload={
+    cafe: CAFE,
+    mode,
+    payment: window.__pay || 'cash',
+    deliveryRules: DELIVERY,
+    items: cart.map(i=>({name:i.n,price:i.p,qty:i.q,subtotal:i.p*i.q})),
+    subtotal,
+    deliveryFee: pricing.fee,
+    total: pricing.total,
+    time,
+    zone: mode==='delivery' ? (document.getElementById('zone')?.value || '') : '',
+    address: mode==='delivery' ? (document.getElementById('address')?.value.trim() || '') : '',
+    location: userLocation
+  };
+
+  if(TG && TG.sendData){
+    TG.sendData(JSON.stringify(payload));
+    TG.close();
+  } else {
+    // fallback: util pentru test în browser
+    console.log('ORDER_PAYLOAD', payload);
+    alert('Comanda a fost generată (vezi consola). În Telegram va fi trimisă către bot.');
+  }
+}
+
+// --------- Basic self-tests (nu afectează producția) ---------
+function assert(name, cond){
+  if(!cond) console.error('TEST FAIL:', name);
+}
+function runTests(){
+  assert('calcDelivery pickup fee 0', calcDelivery(50,'pickup').fee===0);
+  assert('calcDelivery delivery under freeFrom adds fee', calcDelivery(150,'delivery').fee===DELIVERY.fee);
+  assert('calcDelivery delivery freeFrom => fee 0', calcDelivery(200,'delivery').fee===0);
+}
+runTests();
+
+updateCart();
+renderCategories();
+</script>
+</body>
+</html>
