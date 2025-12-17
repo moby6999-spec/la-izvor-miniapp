@@ -127,7 +127,7 @@ header{padding:16px;text-align:center;font-size:20px;font-weight:800;color:var(-
 <div id="categories"></div>
 <div id="products"></div>
 <div style="padding:10px">
- <button class="btn" onclick="alert('CLICK OK')">📨 Trimite TEST către bot</button>
+ <button class="btn" onclick="sendTest()">📨 Trimite TEST către bot</button>
 </div>
 
 
@@ -535,6 +535,27 @@ function sendTest(){
 
 updateCart();
 renderCategories();
+ function sendTest(){
+  alert("DEBUG: am apăsat TEST");
+
+  const WA = (window.Telegram && window.Telegram.WebApp)
+    ? window.Telegram.WebApp
+    : null;
+
+  if(!WA){
+    alert("DEBUG: window.Telegram.WebApp NU există");
+    return;
+  }
+  if(!WA.sendData){
+    alert("DEBUG: sendData NU există");
+    return;
+  }
+
+  WA.sendData(JSON.stringify({type:"TEST", ts: Date.now()}));
+  alert("DEBUG: sendData trimis");
+  WA.close();
+}
+
 </script>
 </body>
 </html>
