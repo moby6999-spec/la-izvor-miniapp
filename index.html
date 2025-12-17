@@ -16,29 +16,48 @@
  --muted:#bdbdbd;
  --danger:#ef4444;
  --ok:#22c55e;
- --blue:#3b82f6;
 }
-*{box-sizing:border-box;font-family:Inter,Arial,sans-serif}
+*{box-sizing:border-box;font-family:Arial,sans-serif}
 body{margin:0;background:var(--bg);color:var(--text)}
-header{padding:16px;text-align:center;font-size:20px;font-weight:800;color:var(--gold)}
+header{text-align:center;padding:14px;font-size:20px;font-weight:900;color:var(--gold)}
 .small{font-size:12px;color:var(--muted)}
 
 #categories{display:flex;gap:10px;overflow-x:auto;padding:10px}
-.cat{
- padding:10px 16px;border-radius:999px;background:var(--card);
- border:1px solid var(--gold-soft);white-space:nowrap;cursor:pointer
-}
-.cat.active{background:var(--gold);color:#000;font-weight:800}
+.cat{padding:10px 16px;border-radius:999px;background:var(--card);border:1px solid var(--gold-soft);cursor:pointer}
+.cat.active{background:var(--gold);color:#000;font-weight:900}
 
-#products{padding:10px;display:grid;grid-template-columns:1fr;gap:12px}
+#products{padding:10px;display:grid;gap:12px}
 .card{background:var(--card);border-radius:16px;padding:14px}
-.price{color:var(--gold);font-weight:800}
+.price{color:var(--gold);font-weight:900}
 
 .btn{
  margin-top:10px;width:100%;padding:12px;border:none;border-radius:999px;
  background:linear-gradient(135deg,var(--gold),var(--gold-soft));
  color:#000;font-weight:900;cursor:pointer
 }
+
+#cartBar{
+ position:fixed;bottom:0;left:0;right:0;background:#000;
+ padding:10px;display:flex;justify-content:space-between;align-items:center
+}
+#badge{
+ background:#ef4444;color:#fff;border-radius:50%;padding:2px 7px;font-size:12px
+}
+
+#toast{
+ position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+ background:var(--gold);color:#000;padding:10px 18px;
+ border-radius:999px;font-weight:900;display:none
+}
+
+#cartDrawer{
+ position:fixed;left:0;right:0;bottom:-100%;height:70%;
+ background:var(--card);border-radius:20px 20px 0 0;
+ transition:.3s;padding:14px;overflow-y:auto
+}
+#cartDrawer.open{bottom:0}
+.qty-btn{width:32px;height:32px;border-radius:50%;border:none;background:var(--gold);font-weight:900}
+.remove{background:none;border:none;color:#ef4444;font-size:18px}
 </style>
 </head>
 
@@ -56,32 +75,67 @@ header{padding:16px;text-align:center;font-size:20px;font-weight:800;color:var(-
  <button class="btn" onclick="sendTest()">📨 Trimite TEST către bot</button>
 </div>
 
+<div id="cartBar">
+ <div>Total: <span id="cartTotal">0</span> lei</div>
+ <button class="btn" onclick="openCart()">🛒 Coș <span id="badge">0</span></button>
+</div>
+
+<div id="toast">Produs adăugat</div>
+<div id="cartDrawer"></div>
+
 <script>
-// Telegram
 const TG = window.Telegram?.WebApp || null;
 if(TG){ TG.ready(); TG.expand(); }
 
-// DATA
+/* ===== MENIU COMPLET ===== */
 const menu = {
- 'Băuturi – Cafea': [
-  {n:'Americano',p:25},{n:'Espresso',p:25},{n:'Cappuccino',p:30},{n:'Latte',p:30}
+ "Băuturi – Cafea":[
+  {n:"Americano",p:25},{n:"Espresso",p:25},{n:"Cappuccino",p:30},
+  {n:"Latte",p:30},{n:"Ice Latte",p:40},{n:"Cafea 3 în 1",p:15},
+  {n:"Cafea solubilă",p:15},{n:"Sirop",p:5}
  ],
- 'Ceai': [
-  {n:'Ceai Julius Meinl',p:20},{n:'Ceai natural 400 ml',p:35}
+ "Ceai":[
+  {n:"Ceai Julius Meinl",p:20},{n:"Ceai infuzie",p:20},
+  {n:"Ceai natural 400 ml",p:35},{n:"Ceai natural 800 ml",p:65}
+ ],
+ "Micul dejun":[
+  {n:"Ouă ochiuri cu crenvurști",p:85},{n:"Omletă",p:70},
+  {n:"Fulgi de ovăz cu fructe",p:50},
+  {n:"Clătite cu carne de pui",p:80},{n:"Clătite cu gem",p:60}
+ ],
+ "Meniu principal":[
+  {n:"Friptură ceafă porc cu mămăligă",p:110},
+  {n:"Ceafă de porc cu piure",p:90},
+  {n:"Bătuță porc/pui cu cartofi",p:75},
+  {n:"Cheeseburger vită",p:80},
+  {n:"Cheeseburger dublu",p:100},
+  {n:"Cheeseburger bacon",p:130},
+  {n:"Ruladă pui cu cartofi",p:75}
+ ],
+ "Salate":[
+  {n:"Salată Caesar",p:105},
+  {n:"Salată grecească",p:80},
+  {n:"Salată varză",p:30},
+  {n:"Salată vară",p:30}
+ ],
+ "Supe":[
+  {n:"Zeamă de pui",p:50},
+  {n:"Borș roșu",p:55},
+  {n:"Soleancă",p:60}
  ]
 };
 
 let cart=[];
 
-const catDiv=document.getElementById('categories');
-const prodDiv=document.getElementById('products');
+const catDiv=document.getElementById("categories");
+const prodDiv=document.getElementById("products");
 
-// UI
+/* ===== UI ===== */
 function renderCategories(){
- catDiv.innerHTML='';
+ catDiv.innerHTML="";
  Object.keys(menu).forEach((c,i)=>{
-  const d=document.createElement('div');
-  d.className='cat'+(i===0?' active':'');
+  const d=document.createElement("div");
+  d.className="cat"+(i===0?" active":"");
   d.innerText=c;
   d.onclick=()=>selectCat(c,d);
   catDiv.appendChild(d);
@@ -90,9 +144,9 @@ function renderCategories(){
 }
 
 function selectCat(cat,el){
- document.querySelectorAll('.cat').forEach(x=>x.classList.remove('active'));
- el.classList.add('active');
- prodDiv.innerHTML='';
+ document.querySelectorAll(".cat").forEach(x=>x.classList.remove("active"));
+ el.classList.add("active");
+ prodDiv.innerHTML="";
  menu[cat].forEach(p=>{
   prodDiv.innerHTML+=`
    <div class="card">
@@ -106,18 +160,66 @@ function selectCat(cat,el){
 function add(n,p){
  const i=cart.find(x=>x.n===n);
  i?i.q++:cart.push({n,p,q:1});
+ updateCart(); toast();
 }
 
-function sendTest(){
- alert('DEBUG: TEST');
+function updateCart(){
+ let t=0,c=0;
+ cart.forEach(i=>{t+=i.p*i.q;c+=i.q});
+ document.getElementById("cartTotal").innerText=t;
+ document.getElementById("badge").innerText=c;
+}
+
+function toast(){
+ const t=document.getElementById("toast");
+ t.style.display="block";
+ setTimeout(()=>t.style.display="none",1000);
+}
+
+function openCart(){
+ const d=document.getElementById("cartDrawer");
+ d.classList.add("open");
+ let html="<h3>🛒 Coș</h3>";
+ if(cart.length===0){
+  d.innerHTML=html+"<p>Coșul este gol</p>";
+  return;
+ }
+ cart.forEach((i,idx)=>{
+  html+=`
+   <div>
+    ${i.n} (${i.q}) – ${i.p*i.q} lei
+    <button class="qty-btn" onclick="inc(${idx})">+</button>
+    <button class="qty-btn" onclick="dec(${idx})">−</button>
+    <button class="remove" onclick="del(${idx})">🗑</button>
+   </div>`;
+ });
+ html+=`<button class="btn" onclick="submitOrder()">Trimite comanda</button>`;
+ d.innerHTML=html;
+}
+
+function inc(i){cart[i].q++;updateCart();openCart();}
+function dec(i){cart[i].q--;if(cart[i].q<=0)cart.splice(i,1);updateCart();openCart();}
+function del(i){cart.splice(i,1);updateCart();openCart();}
+
+function submitOrder(){
+ const payload={items:cart,total:cart.reduce((s,i)=>s+i.p*i.q,0)};
  if(TG && TG.sendData){
-  TG.sendData(JSON.stringify({type:'TEST',ts:Date.now()}));
+  TG.sendData(JSON.stringify(payload));
   TG.close();
  }
 }
 
-// INIT
+function sendTest(){
+ alert("DEBUG TEST");
+ if(TG && TG.sendData){
+  TG.sendData(JSON.stringify({type:"TEST"}));
+  TG.close();
+ }
+}
+
+/* INIT */
 renderCategories();
+updateCart();
 </script>
 
 </body>
